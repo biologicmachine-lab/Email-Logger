@@ -1,1 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shift Report Generator</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e8eb;
+    --muted: #9aa1ac;
+    --accent: #4f8cff;
+    --accent2: #3a6fd8;
+    --danger: #e5484d;
+    --success: #2fb344;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    line-height: 1.4;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .container { max-width: 900px; margin: 0 auto; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 18px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 14px; color: var(--accent); }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  input[type=text], input[type=date], textarea, select {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  .field { margin-bottom: 12px; }
+  .entry {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .entry-header strong { font-size: 13px; }
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .btn:hover { background: var(--accent2); }
+  .btn.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn.secondary:hover { border-color: var(--accent); }
+  .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); padding: 4px 10px; font-size: 12px; }
+  .btn.danger:hover { background: rgba(229,72,77,0.1); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .photo-drop {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .photo-drop:hover { border-color: var(--accent); color: var(--text); }
+  .thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .thumb {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .rm {
+    position: absolute;
+    top: 2px; right: 2px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    width: 18px; height: 18px;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .footer-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  #status {
+    font-size: 13px;
+    margin-top: 10px;
+    min-height: 18px;
+  }
+  #status.ok { color: var(--success); }
+  #status.err { color: var(--danger); }
+  .preview {
+    background: #fff;
+    color: #111;
+    border-radius: var(--radius);
+    padding: 20px;
+    font-size: 14px;
+  }
+  .preview h3 { margin-top: 0; }
+  .preview .entry-block { border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px; }
+  .preview img { max-width: 160px; margin: 4px 6px 4px 0; border-radius: 4px; border: 1px solid #ccc; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Shift Report — Email Generator</h1>
+  <div class="sub">Log everything from your shift — collision calls, weld modifications, repairs, and more — attach photos per entry, then export directly to an email you can send.</div>
+
+  <div class="card">
+    <h2>Report Details</h2>
+    <div class="grid">
+      <div class="field">
+        <label>Report Title / Subject</label>
+        <input type="text" id="reportTitle" placeholder="e.g. Robotic Weld Cell #4 — Repair Report">
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="reportDate">
+      </div>
+      <div class="field">
+        <label>System / Cell Number</label>
+        <input type="text" id="systemNumber" placeholder="e.g. RWC-04">
+      </div>
+      <div class="field">
+        <label>Prepared By</label>
+        <input type="text" id="preparedBy" placeholder="Your name">
+      </div>
+      <div class="field">
+        <label>Send To (email)</label>
+        <input type="text" id="toEmail" placeholder="recipient@example.com">
+      </div>
+      <div class="field">
+        <label>CC (optional)</label>
+        <input type="text" id="ccEmail" placeholder="cc@example.com">
+      </div>
+    </div>
+    <div class="field">
+      <label>General Notes</label>
+      <textarea id="generalNotes" placeholder="Overall summary or context for this report..."></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Entries</h2>
+    <div id="entriesContainer"></div>
+    <button class="btn secondary" onclick="addEntry()">+ Add Entry</button>
+  </div>
+
+  <div class="card">
+    <h2>Export</h2>
+    <div class="footer-actions">
+      <button class="btn" onclick="exportEml()">📧 Export Email (.eml, with photos)</button>
+      <button class="btn secondary" onclick="openMailto()">✉️ Open in Mail App (text only)</button>
+      <button class="btn secondary" onclick="renderPreview()"> Preview Report</button>
+      <button class="btn secondary" onclick="clearAll()">🗑 Clear / Start New Shift</button>
+    </div>
+    <div class="hint">
+      The .eml file contains the full report with embedded photos attachments. Double-click it to open
+      in Mail, Outlook, or Thunderbird. It opens as a 'ready to send' message. "Open in Mail App" uses your
+      system default mail link but cannot attach photos (a mailto: limitation).
+    </div>
+    <div id="status"></div>
+    <div id="autosaveIndicator" class="hint" style="margin-top:4px;"></div>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none;">
+    <h2>Preview</h2>
+    <div class="preview" id="previewContent"></div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" multiple>
+
+<script>
+let entries = [];
+let entryIdCounter = 0;
+let activeEntryForUpload = null;
+
+const ENTRY_TYPES = [
+  'Repair',
+  'Collision Call',
+  'Weld Modification',
+  'Preventive Maintenance',
+  'Inspection / Quality Check',
+  'Downtime / Breakdown',
+  'Setup / Changeover',
+  'Other'
+];
+
+function newEntry() {
+  entryIdCounter++;
+  return { id: entryIdCounter, type: ENTRY_TYPES[0], customType: '', partNumbers: '', notes: '', photos: [] };
+}
+
+function updateEntryType(id, value) {
+  updateEntryField(id, 'type', value);
+  renderEntries();
+}
+
+function getEntryTypeLabel(e) {
+  return e.type === 'Other' ? (e.customType || 'Other') : e.type;
+}
+
+function addEntry() {
+  entries.push(newEntry());
+  renderEntries();
+}
+
+function removeEntry(id) {
+  entries = entries.filter(e => e.id !== id);
+  renderEntries();
+}
+
+function updateEntryField(id, field, value) {
+  const e = entries.find(x => x.id === id);
+  if (e) e[field] = value;
+}
+
+function triggerUpload(id) {
+  activeEntryForUpload = id;
+  document.getElementById('fileInput').click();
+}
+
+function removePhoto(entryId, photoIndex) {
+  const e = entries.find(x => x.id === entryId);
+  if (e) {
+    e.photos.splice(photoIndex, 1);
+    renderEntries();
+  }
+}
+
+document.getElementById('fileInput').addEventListener('change', function(evt) {
+  const files = Array.from(evt.target.files || []);
+  const e = entries.find(x => x.id === activeEntryForUpload);
+  if (!e || files.length === 0) return;
+
+  let remaining = files.length;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      e.photos.push({ name: file.name, dataUrl: ev.target.result, type: file.type });
+      remaining--;
+      if (remaining === 0) renderEntries();
+    };
+    reader.readAsDataURL(file);
+  });
+  evt.target.value = '';
+});
+
+function renderEntries() {
+  const container = document.getElementById('entriesContainer');
+  container.innerHTML = '';
+
+  if (entries.length === 0) {
+    entries.push(newEntry());
+  }
+
+  entries.forEach((e, idx) => {
+    const div = document.createElement('div');
+    div.className = 'entry';
+    div.innerHTML = `
+      <div class="entry-header">
+        <strong>Entry ${idx + 1} — ${escapeHtml(getEntryTypeLabel(e))}</strong>
+        ${entries.length > 1 ? `<button class="btn danger" onclick="removeEntry(${e.id})">Remove</button>` : ''}
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>Entry Type</label>
+          <select onchange="updateEntryType(${e.id}, this.value)">
+            ${ENTRY_TYPES.map(t => `<option value="${t}" ${e.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        ${e.type === 'Other' ? `
+        <div class="field">
+          <label>Specify Type</label>
+          <input type="text" value="${escapeAttr(e.customType)}" placeholder="e.g. Safety Incident"
+            oninput="updateEntryField(${e.id}, 'customType', this.value)">
+        </div>` : ''}
+        <div class="field">
+          <label>Part Number(s) <span style="opacity:.6">(if applicable)</span></label>
+          <input type="text" value="${escapeAttr(e.partNumbers)}" placeholder="e.g. PN-10245, PN-10246"
+            oninput="updateEntryField(${e.id}, 'partNumbers', this.value)">
+        </div>
+      </div>
+      <div class="field">
+        <label>Notes / Description</label>
+        <textarea placeholder="What happened, what was done..."
+          oninput="updateEntryField(${e.id}, 'notes', this.value)">${escapeHtml(e.notes)}</textarea>
+      </div>
+      <div class="field">
+        <label>Photos</label>
+        <div class="photo-drop" onclick="triggerUpload(${e.id})">📷 Click to attach photo(s)</div>
+        <div class="thumbs" id="thumbs-${e.id}"></div>
+      </div>
+    `;
+    container.appendChild(div);
+
+    const thumbsDiv = div.querySelector(`#thumbs-${e.id}`);
+    e.photos.forEach((p, pIdx) => {
+      const t = document.createElement('div');
+      t.className = 'thumb';
+      t.innerHTML = `<img src="${p.dataUrl}"><button class="rm" onclick="removePhoto(${e.id}, ${pIdx})">✕</button>`;
+      thumbsDiv.appendChild(t);
+    });
+  });
+}
+
+function escapeHtml(str) {
+  return (str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/"/g, '&quot;');
+}
+
+function getReportData() {
+  return {
+    title: document.getElementById('reportTitle').value || 'Report',
+    date: document.getElementById('reportDate').value,
+    systemNumber: document.getElementById('systemNumber').value,
+    preparedBy: document.getElementById('preparedBy').value,
+    toEmail: document.getElementById('toEmail').value,
+    ccEmail: document.getElementById('ccEmail').value,
+    generalNotes: document.getElementById('generalNotes').value,
+    entries: entries
+  };
+}
+
+function buildPlainTextBody(data) {
+  let body = `${data.title}\n`;
+  body += `Date: ${data.date || '(not set)'}\n`;
+  body += `System Number: ${data.systemNumber || '(none)'}\n`;
+  body += `Prepared By: ${data.preparedBy || '(none)'}\n\n`;
+  if (data.generalNotes) body += `General Notes:\n${data.generalNotes}\n\n`;
+  data.entries.forEach((e, i) => {
+    body += `--- Entry ${i + 1}: ${getEntryTypeLabel(e)} ---\n`;
+    if (e.partNumbers) body += `Part Number(s): ${e.partNumbers}\n`;
+    body += `Notes: ${e.notes || '(none)'}\n`;
+    if (e.photos.length) body += `Photos attached: ${e.photos.length}\n`;
+    body += `\n`;
+  });
+  return body;
+}
+
+function buildHtmlBody(data, cidMap) {
+  let html = `<h2>${escapeHtml(data.title)}</h2>`;
+  html += `<p><b>Date:</b> ${escapeHtml(data.date || '(not set)')}<br>`;
+  html += `<b>System Number:</b> ${escapeHtml(data.systemNumber || '(none)')}<br>`;
+  html += `<b>Prepared By:</b> ${escapeHtml(data.preparedBy || '(none)')}</p>`;
+  if (data.generalNotes) html += `<p><b>General Notes:</b><br>${escapeHtml(data.generalNotes).replace(/\n/g,'<br>')}</p>`;
+
+  data.entries.forEach((e, i) => {
+    html += `<hr><h3>Entry ${i + 1}: ${escapeHtml(getEntryTypeLabel(e))}</h3>`;
+    if (e.partNumbers) html += `<p><b>Part Number(s):</b> ${escapeHtml(e.partNumbers)}</p>`;
+    html += `<p><b>Notes:</b><br>${escapeHtml(e.notes || '(none)').replace(/\n/g,'<br>')}</p>`;
+    e.photos.forEach(p => {
+      const cid = cidMap.get(p);
+      html += `<img src="cid:${cid}" style="max-width:300px;margin:4px;border:1px solid #ccc;border-radius:4px;"><br>`;
+    });
+  });
+  return html;
+}
+
+function renderPreview() {
+  const data = getReportData();
+  const cidMap = new Map();
+  data.entries.forEach(e => e.photos.forEach(p => cidMap.set(p, 'preview')));
+  let html = `<h3>${escapeHtml(data.title)}</h3>`;
+  html += `<p><b>Date:</b> ${escapeHtml(data.date || '(not set)')} &nbsp; <b>System #:</b> ${escapeHtml(data.systemNumber || '(none)')} &nbsp; <b>By:</b> ${escapeHtml(data.preparedBy || '(none)')}</p>`;
+  if (data.generalNotes) html += `<p><b>General Notes:</b><br>${escapeHtml(data.generalNotes).replace(/\n/g,'<br>')}</p>`;
+  data.entries.forEach((e, i) => {
+    html += `<div class="entry-block"><b>Entry ${i+1}: ${escapeHtml(getEntryTypeLabel(e))}</b><br>`;
+    if (e.partNumbers) html += `<b>Part #:</b> ${escapeHtml(e.partNumbers)}<br>`;
+    html += `${escapeHtml(e.notes || '(no notes)').replace(/\n/g,'<br>')}<br>`;
+    e.photos.forEach(p => { html += `<img src="${p.dataUrl}">`; });
+    html += `</div>`;
+  });
+  document.getElementById('previewContent').innerHTML = html;
+  document.getElementById('previewCard').style.display = 'block';
+  document.getElementById('previewCard').scrollIntoView({behavior:'smooth'});
+}
+
+function setStatus(msg, isErr) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = isErr ? 'err' : 'ok';
+}
+
+function openMailto() {
+  const data = getReportData();
+  const subject = encodeURIComponent(data.title);
+  const body = encodeURIComponent(buildPlainTextBody(data));
+  let url = `mailto:${data.toEmail || ''}?subject=${subject}&body=${body}`;
+  if (data.ccEmail) url += `&cc=${encodeURIComponent(data.ccEmail)}`;
+  window.location.href = url;
+  setStatus('Opened your default mail app (photos not included — mailto: cannot attach files).');
+}
+
+function dataUrlToBase64(dataUrl) {
+  return dataUrl.split(',')[1];
+}
+
+function exportEml() {
+  const data = getReportData();
+  if (data.entries.every(e => e.photos.length === 0) && !data.generalNotes && !data.title) {
+    setStatus('Add some report details first.', true);
+    return;
+  }
+
+  const boundaryMixed = 'mixed_' + Math.random().toString(36).slice(2);
+  const boundaryAlt = 'alt_' + Math.random().toString(36).slice(2);
+
+  const cidMap = new Map();
+  let cidCounter = 0;
+  data.entries.forEach(e => e.photos.forEach(p => {
+    cidCounter++;
+    cidMap.set(p, `photo${cidCounter}@report`);
+  }));
+
+  const plainBody = buildPlainTextBody(data);
+  const htmlBody = buildHtmlBody(data, cidMap);
+
+  let eml = '';
+  eml += `To: ${data.toEmail || ''}\r\n`;
+  if (data.ccEmail) eml += `Cc: ${data.ccEmail}\r\n`;
+  eml += `Subject: ${data.title}\r\n`;
+  eml += `MIME-Version: 1.0\r\n`;
+  eml += `Content-Type: multipart/mixed; boundary="${boundaryMixed}"\r\n\r\n`;
+
+  eml += `--${boundaryMixed}\r\n`;
+  eml += `Content-Type: multipart/alternative; boundary="${boundaryAlt}"\r\n\r\n`;
+
+  eml += `--${boundaryAlt}\r\n`;
+  eml += `Content-Type: text/plain; charset="UTF-8"\r\n`;
+  eml += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
+  eml += plainBody + `\r\n\r\n`;
+
+  eml += `--${boundaryAlt}\r\n`;
+  eml += `Content-Type: text/html; charset="UTF-8"\r\n`;
+  eml += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
+  eml += `<html><body>${htmlBody}</body></html>\r\n\r\n`;
+  eml += `--${boundaryAlt}--\r\n\r\n`;
+
+  data.entries.forEach(e => {
+    e.photos.forEach(p => {
+      const cid = cidMap.get(p);
+      const base64 = dataUrlToBase64(p.dataUrl);
+      const chunked = base64.match(/.{1,76}/g).join('\r\n');
+      eml += `--${boundaryMixed}\r\n`;
+      eml += `Content-Type: ${p.type || 'image/jpeg'}; name="${p.name}"\r\n`;
+      eml += `Content-Transfer-Encoding: base64\r\n`;
+      eml += `Content-ID: <${cid}>\r\n`;
+      eml += `Content-Disposition: inline; filename="${p.name}"\r\n\r\n`;
+      eml += chunked + `\r\n\r\n`;
+    });
+  });
+
+  eml += `--${boundaryMixed}--\r\n`;
+
+  const blob = new Blob([eml], { type: 'message/rfc822' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeTitle = (data.title || 'report').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+  a.href = url;
+  a.download = `${safeTitle || 'email_report'}.eml`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  setStatus('Exported .eml — double-click the downloaded file to open it in your mail app, then hit Send.');
+}
+
+const STORAGE_KEY = 'shiftReportAutosave';
+let autosaveTimer = null;
+
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(autosaveNow, 400);
+}
+
+function autosaveNow() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(getReportData()));
+    const ind = document.getElementById('autosaveIndicator');
+    const now = new Date();
+    ind.textContent = `Autosaved ${now.toLocaleTimeString()} — safe to close the app, your data will be here when you reopen it.`;
+  } catch (err) {
+    document.getElementById('autosaveIndicator').textContent = 'Autosave failed: ' + err.message;
+  }
+}
+
+function restoreAutosave() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    document.getElementById('reportTitle').value = data.title || '';
+    document.getElementById('reportDate').value = data.date || '';
+    document.getElementById('systemNumber').value = data.systemNumber || '';
+    document.getElementById('preparedBy').value = data.preparedBy || '';
+    document.getElementById('toEmail').value = data.toEmail || '';
+    document.getElementById('ccEmail').value = data.ccEmail || '';
+    document.getElementById('generalNotes').value = data.generalNotes || '';
+    entries = (data.entries && data.entries.length)
+      ? data.entries.map(e => ({ type: ENTRY_TYPES[0], customType: '', partNumbers: '', notes: '', photos: [], ...e, id: ++entryIdCounter }))
+      : [];
+    renderEntries();
+    return true;
+  } catch (err) {
+    console.error('Restore failed', err);
+    return false;
+  }
+}
+
+function clearAll() {
+  if (!confirm('Clear this report and start a new shift? This cannot be undone.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById('reportTitle').value = '';
+  document.getElementById('systemNumber').value = '';
+  document.getElementById('preparedBy').value = '';
+  document.getElementById('toEmail').value = '';
+  document.getElementById('ccEmail').value = '';
+  document.getElementById('generalNotes').value = '';
+  document.getElementById('reportDate').valueAsDate = new Date();
+  entries = [];
+  addEntry();
+  document.getElementById('previewCard').style.display = 'none';
+  setStatus('Started a new shift report.');
+  autosaveNow();
+}
+
+// Autosave on any input/change anywhere in the form
+document.addEventListener('input', scheduleAutosave);
+document.addEventListener('change', scheduleAutosave);
+
+// init: restore whatever was in progress, else start fresh
+const restored = restoreAutosave();
+if (!restored) {
+  document.getElementById('reportDate').valueAsDate = new Date();
+  addEntry();
+} else if (entries.length === 0) {
+  addEntry();
+}
+</script>
+</body>
+</html>
 
