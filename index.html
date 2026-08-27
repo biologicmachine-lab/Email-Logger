@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shift Report Generator</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<meta name="theme-color" content="#171a21">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shift Report">
 <style>
   :root {
     --bg: #0f1115;
@@ -162,9 +172,22 @@
 </style>
 </head>
 <body>
+
+<div id="lockScreen" style="position:fixed;inset:0;background:#0f1115;display:flex;align-items:center;justify-content:center;z-index:9999;">
+  <div style="background:#171a21;border:1px solid #2a2f3a;border-radius:10px;padding:28px;width:280px;text-align:center;">
+    <div style="font-size:28px;margin-bottom:8px;">🔒</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:14px;color:#e6e8eb;">Shift Report — Locked</div>
+    <input type="password" id="lockPassword" placeholder="Enter password"
+      style="width:100%;background:#1e222b;border:1px solid #2a2f3a;color:#e6e8eb;border-radius:6px;padding:8px 10px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">
+    <button onclick="tryUnlock()" style="width:100%;background:#4f8cff;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;">Unlock</button>
+    <div id="lockError" style="color:#e5484d;font-size:12px;margin-top:8px;min-height:14px;"></div>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none;">
 <div class="container">
   <h1>Shift Report — Email Generator</h1>
-  <div class="sub">Log everything from your shift — Calls, Modifications, Repairs, and more — attach photos per entry, then export directly to an email you can send.</div>
+  <div class="sub">Log everything from your shift — collision calls, weld modifications, repairs, and more — attach photos per entry, then export directly to an email you can send.</div>
 
   <div class="card">
     <h2>Report Details</h2>
@@ -211,7 +234,7 @@
     <div class="footer-actions">
       <button class="btn" onclick="exportEml()">📧 Export Email (.eml, with photos)</button>
       <button class="btn secondary" onclick="openMailto()">✉️ Open in Mail App (text only)</button>
-      <button class="btn secondary" onclick="renderPreview()"> Preview Report</button>
+      <button class="btn secondary" onclick="renderPreview()">👁 Preview Report</button>
       <button class="btn secondary" onclick="clearAll()">🗑 Clear / Start New Shift</button>
     </div>
     <div class="hint">
@@ -228,37 +251,55 @@
     <div class="preview" id="previewContent"></div>
   </div>
 </div>
+</div>
 
 <input type="file" id="fileInput" accept="image/*" multiple>
 
 <script>
+// --- Simple password gate (deterrent only, not real security — anyone who views
+// the page source can see this is a hash check and could work around it) ---
+const UNLOCK_KEY = 'shiftReportUnlocked';
+// SHA-256 hash of the password. Change PASSWORD_HASH by generating a new hash
+// (see instructions below the file) rather than storing the plaintext here.
+const PASSWORD_HASH = 'REPLACE_WITH_YOUR_HASH';
+
+async function sha256(text) {
+  const data = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function tryUnlock() {
+  const input = document.getElementById('lockPassword').value;
+  const hash = await sha256(input);
+  if (hash === PASSWORD_HASH) {
+    sessionStorage.setItem(UNLOCK_KEY, '1');
+    showApp();
+  } else {
+    document.getElementById('lockError').textContent = 'Incorrect password.';
+  }
+}
+
+function showApp() {
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+}
+
+document.getElementById('lockPassword').addEventListener('keydown', e => {
+  if (e.key === 'Enter') tryUnlock();
+});
+
+if (sessionStorage.getItem(UNLOCK_KEY) === '1') {
+  showApp();
+}
+
 let entries = [];
 let entryIdCounter = 0;
 let activeEntryForUpload = null;
 
-const ENTRY_TYPES = [
-  'Repair',
-  'Collision Call',
-  'Weld Modification',
-  'Preventive Maintenance',
-  'Inspection / Quality Check',
-  'Downtime / Breakdown',
-  'Setup / Changeover',
-  'Other'
-];
-
 function newEntry() {
   entryIdCounter++;
-  return { id: entryIdCounter, type: ENTRY_TYPES[0], customType: '', partNumbers: '', notes: '', photos: [] };
-}
-
-function updateEntryType(id, value) {
-  updateEntryField(id, 'type', value);
-  renderEntries();
-}
-
-function getEntryTypeLabel(e) {
-  return e.type === 'Other' ? (e.customType || 'Other') : e.type;
+  return { id: entryIdCounter, system: '', description: '', partNumbers: '', serialNumbers: '', notes: '', photos: [] };
 }
 
 function addEntry() {
@@ -276,6 +317,14 @@ function removeEntry(id) {
 function updateEntryField(id, field, value) {
   const e = entries.find(x => x.id === id);
   if (e) e[field] = value;
+}
+
+function refreshEntryHeader(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  const idx = entries.indexOf(e);
+  const headerEl = document.querySelectorAll('.entry .entry-header strong')[idx];
+  if (headerEl) headerEl.textContent = `Entry ${idx + 1}${e.system ? ' — ' + e.system : ''}`;
 }
 
 function triggerUpload(id) {
@@ -323,31 +372,34 @@ function renderEntries() {
     div.className = 'entry';
     div.innerHTML = `
       <div class="entry-header">
-        <strong>Entry ${idx + 1} — ${escapeHtml(getEntryTypeLabel(e))}</strong>
+        <strong>Entry ${idx + 1}${e.system ? ' — ' + escapeHtml(e.system) : ''}</strong>
         ${entries.length > 1 ? `<button class="btn danger" onclick="removeEntry(${e.id})">Remove</button>` : ''}
       </div>
       <div class="grid">
         <div class="field">
-          <label>Entry Type</label>
-          <select onchange="updateEntryType(${e.id}, this.value)">
-            ${ENTRY_TYPES.map(t => `<option value="${t}" ${e.type === t ? 'selected' : ''}>${t}</option>`).join('')}
-          </select>
+          <label>System</label>
+          <input type="text" value="${escapeAttr(e.system)}" placeholder="e.g. T2, M2"
+            oninput="updateEntryField(${e.id}, 'system', this.value); refreshEntryHeader(${e.id});">
         </div>
-        ${e.type === 'Other' ? `
         <div class="field">
-          <label>Specify Type</label>
-          <input type="text" value="${escapeAttr(e.customType)}" placeholder="e.g. Safety Incident"
-            oninput="updateEntryField(${e.id}, 'customType', this.value)">
-        </div>` : ''}
+          <label>Description</label>
+          <input type="text" value="${escapeAttr(e.description)}" placeholder="e.g. Miss sensing issue due to cover lid being pulled"
+            oninput="updateEntryField(${e.id}, 'description', this.value)">
+        </div>
         <div class="field">
           <label>Part Number(s) <span style="opacity:.6">(if applicable)</span></label>
-          <input type="text" value="${escapeAttr(e.partNumbers)}" placeholder="e.g. PN-10245, PN-10246"
+          <input type="text" value="${escapeAttr(e.partNumbers)}" placeholder="e.g. 123456"
             oninput="updateEntryField(${e.id}, 'partNumbers', this.value)">
+        </div>
+        <div class="field">
+          <label>Serial Number(s) <span style="opacity:.6">(if applicable)</span></label>
+          <input type="text" value="${escapeAttr(e.serialNumbers)}" placeholder="e.g. 123456"
+            oninput="updateEntryField(${e.id}, 'serialNumbers', this.value)">
         </div>
       </div>
       <div class="field">
-        <label>Notes / Description</label>
-        <textarea placeholder="What happened, what was done..."
+        <label>Notes <span style="opacity:.6">(optional)</span></label>
+        <textarea placeholder="Additional details, if any..."
           oninput="updateEntryField(${e.id}, 'notes', this.value)">${escapeHtml(e.notes)}</textarea>
       </div>
       <div class="field">
@@ -388,33 +440,60 @@ function getReportData() {
   };
 }
 
+function entryHeaderText(e) {
+  const sys = (e.system || '').trim();
+  const desc = (e.description || '').trim();
+  if (sys && desc) return `${sys} - ${desc}`;
+  if (sys) return sys;
+  return desc || '(no description)';
+}
+
+function entryPartSerialLine(e) {
+  const parts = [];
+  if (e.partNumbers && e.partNumbers.trim()) parts.push(`Part #: ${e.partNumbers.trim()}`);
+  if (e.serialNumbers && e.serialNumbers.trim()) parts.push(`Serial#: ${e.serialNumbers.trim()}`);
+  return parts.length ? parts.join(' ') : null;
+}
+
 function buildPlainTextBody(data) {
   let body = `${data.title}\n`;
   body += `Date: ${data.date || '(not set)'}\n`;
-  body += `System Number: ${data.systemNumber || '(none)'}\n`;
+  if (data.systemNumber) body += `System Number: ${data.systemNumber}\n`;
   body += `Prepared By: ${data.preparedBy || '(none)'}\n\n`;
   if (data.generalNotes) body += `General Notes:\n${data.generalNotes}\n\n`;
-  data.entries.forEach((e, i) => {
-    body += `--- Entry ${i + 1}: ${getEntryTypeLabel(e)} ---\n`;
-    if (e.partNumbers) body += `Part Number(s): ${e.partNumbers}\n`;
-    body += `Notes: ${e.notes || '(none)'}\n`;
-    if (e.photos.length) body += `Photos attached: ${e.photos.length}\n`;
+
+  data.entries.forEach(e => {
+    body += `${entryHeaderText(e)}\n`;
+    const psLine = entryPartSerialLine(e);
+    if (psLine) body += `${psLine}\n`;
+    if (e.notes && e.notes.trim()) body += `\nNotes: ${e.notes.trim()}\n`;
     body += `\n`;
   });
+
+  const withPhotos = data.entries.filter(e => e.photos.length);
+  if (withPhotos.length) {
+    body += `(Images)\n`;
+    withPhotos.forEach(e => {
+      body += `${e.system || entryHeaderText(e)} - ${e.photos.map(p => p.name).join(', ')}\n\n`;
+    });
+  }
+
   return body;
 }
 
 function buildHtmlBody(data, cidMap) {
   let html = `<h2>${escapeHtml(data.title)}</h2>`;
   html += `<p><b>Date:</b> ${escapeHtml(data.date || '(not set)')}<br>`;
-  html += `<b>System Number:</b> ${escapeHtml(data.systemNumber || '(none)')}<br>`;
+  if (data.systemNumber) html += `<b>System Number:</b> ${escapeHtml(data.systemNumber)}<br>`;
   html += `<b>Prepared By:</b> ${escapeHtml(data.preparedBy || '(none)')}</p>`;
   if (data.generalNotes) html += `<p><b>General Notes:</b><br>${escapeHtml(data.generalNotes).replace(/\n/g,'<br>')}</p>`;
 
-  data.entries.forEach((e, i) => {
-    html += `<hr><h3>Entry ${i + 1}: ${escapeHtml(getEntryTypeLabel(e))}</h3>`;
-    if (e.partNumbers) html += `<p><b>Part Number(s):</b> ${escapeHtml(e.partNumbers)}</p>`;
-    html += `<p><b>Notes:</b><br>${escapeHtml(e.notes || '(none)').replace(/\n/g,'<br>')}</p>`;
+  data.entries.forEach(e => {
+    html += `<hr><p style="margin-bottom:4px;"><b>${escapeHtml(entryHeaderText(e))}</b><br>`;
+    const psLine = entryPartSerialLine(e);
+    if (psLine) html += `${escapeHtml(psLine)}<br>`;
+    if (e.notes && e.notes.trim()) html += `<br>Notes: ${escapeHtml(e.notes.trim()).replace(/\n/g,'<br>')}<br>`;
+    html += `</p>`;
     e.photos.forEach(p => {
       const cid = cidMap.get(p);
       html += `<img src="cid:${cid}" style="max-width:300px;margin:4px;border:1px solid #ccc;border-radius:4px;"><br>`;
@@ -425,15 +504,16 @@ function buildHtmlBody(data, cidMap) {
 
 function renderPreview() {
   const data = getReportData();
-  const cidMap = new Map();
-  data.entries.forEach(e => e.photos.forEach(p => cidMap.set(p, 'preview')));
   let html = `<h3>${escapeHtml(data.title)}</h3>`;
-  html += `<p><b>Date:</b> ${escapeHtml(data.date || '(not set)')} &nbsp; <b>System #:</b> ${escapeHtml(data.systemNumber || '(none)')} &nbsp; <b>By:</b> ${escapeHtml(data.preparedBy || '(none)')}</p>`;
+  html += `<p><b>Date:</b> ${escapeHtml(data.date || '(not set)')}`;
+  if (data.systemNumber) html += ` &nbsp; <b>System #:</b> ${escapeHtml(data.systemNumber)}`;
+  html += ` &nbsp; <b>By:</b> ${escapeHtml(data.preparedBy || '(none)')}</p>`;
   if (data.generalNotes) html += `<p><b>General Notes:</b><br>${escapeHtml(data.generalNotes).replace(/\n/g,'<br>')}</p>`;
-  data.entries.forEach((e, i) => {
-    html += `<div class="entry-block"><b>Entry ${i+1}: ${escapeHtml(getEntryTypeLabel(e))}</b><br>`;
-    if (e.partNumbers) html += `<b>Part #:</b> ${escapeHtml(e.partNumbers)}<br>`;
-    html += `${escapeHtml(e.notes || '(no notes)').replace(/\n/g,'<br>')}<br>`;
+  data.entries.forEach(e => {
+    html += `<div class="entry-block"><b>${escapeHtml(entryHeaderText(e))}</b><br>`;
+    const psLine = entryPartSerialLine(e);
+    if (psLine) html += `${escapeHtml(psLine)}<br>`;
+    if (e.notes && e.notes.trim()) html += `<br>Notes: ${escapeHtml(e.notes.trim()).replace(/\n/g,'<br>')}<br>`;
     e.photos.forEach(p => { html += `<img src="${p.dataUrl}">`; });
     html += `</div>`;
   });
@@ -565,7 +645,7 @@ function restoreAutosave() {
     document.getElementById('ccEmail').value = data.ccEmail || '';
     document.getElementById('generalNotes').value = data.generalNotes || '';
     entries = (data.entries && data.entries.length)
-      ? data.entries.map(e => ({ type: ENTRY_TYPES[0], customType: '', partNumbers: '', notes: '', photos: [], ...e, id: ++entryIdCounter }))
+      ? data.entries.map(e => ({ system: '', description: '', partNumbers: '', serialNumbers: '', notes: '', photos: [], ...e, id: ++entryIdCounter }))
       : [];
     renderEntries();
     return true;
