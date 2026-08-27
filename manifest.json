@@ -1,0 +1,18 @@
+{
+  "name": "Shift Report Generator",
+  "short_name": "Shift Report",
+  "description": "Log shift entries with photos and export directly to email.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#171a21",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
