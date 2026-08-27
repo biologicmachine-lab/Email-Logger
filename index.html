@@ -211,12 +211,12 @@
     <div class="footer-actions">
       <button class="btn" onclick="exportEml()">📧 Export Email (.eml, with photos)</button>
       <button class="btn secondary" onclick="openMailto()">✉️ Open in Mail App (text only)</button>
-      <button class="btn secondary" onclick="renderPreview()"> Preview Report</button>
+      <button class="btn secondary" onclick="renderPreview()">👁 Preview Report</button>
       <button class="btn secondary" onclick="clearAll()">🗑 Clear / Start New Shift</button>
     </div>
     <div class="hint">
-      The .eml file contains the full report with embedded photos attachments. Double-click it to open
-      in Mail, Outlook, or Thunderbird. It opens as a 'ready to send' message. "Open in Mail App" uses your
+      The .eml file contains the full report with embedded photos as real attachments. Double-click it to open
+      in Mail, Outlook, or Thunderbird — it opens as a ready-to-send message. "Open in Mail App" uses your
       system default mail link but cannot attach photos (a mailto: limitation).
     </div>
     <div id="status"></div>
@@ -264,11 +264,13 @@ function getEntryTypeLabel(e) {
 function addEntry() {
   entries.push(newEntry());
   renderEntries();
+  scheduleAutosave();
 }
 
 function removeEntry(id) {
   entries = entries.filter(e => e.id !== id);
   renderEntries();
+  scheduleAutosave();
 }
 
 function updateEntryField(id, field, value) {
@@ -286,6 +288,7 @@ function removePhoto(entryId, photoIndex) {
   if (e) {
     e.photos.splice(photoIndex, 1);
     renderEntries();
+    scheduleAutosave();
   }
 }
 
@@ -300,7 +303,7 @@ document.getElementById('fileInput').addEventListener('change', function(evt) {
     reader.onload = function(ev) {
       e.photos.push({ name: file.name, dataUrl: ev.target.result, type: file.type });
       remaining--;
-      if (remaining === 0) renderEntries();
+      if (remaining === 0) { renderEntries(); scheduleAutosave(); }
     };
     reader.readAsDataURL(file);
   });
@@ -604,4 +607,3 @@ if (!restored) {
 </script>
 </body>
 </html>
-
